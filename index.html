@@ -128,6 +128,8 @@
             align-items: center;
             justify-content: space-between;
             margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .progress-bar {
@@ -137,6 +139,7 @@
             border-radius: 4px;
             overflow: hidden;
             margin: 0 15px;
+            min-width: 150px;
         }
 
         .progress-fill {
@@ -151,17 +154,39 @@
             font-size: 0.9rem;
             color: var(--text-secondary);
             font-weight: 500;
+            white-space: nowrap;
         }
 
         .score-display {
             font-size: 0.9rem;
             color: var(--text-secondary);
             font-weight: 500;
+            white-space: nowrap;
         }
 
         .score-value {
             color: var(--primary);
             font-weight: 700;
+        }
+
+        .timer-display {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .timer-value {
+            color: var(--warning);
+            font-weight: 700;
+        }
+
+        .timer-warning {
+            color: var(--danger);
+            animation: pulse 1s infinite;
         }
 
         #question {
@@ -390,6 +415,12 @@
             color: var(--text-secondary);
         }
 
+        .time-up-message {
+            color: var(--danger);
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -404,12 +435,15 @@
         @keyframes pulse {
             0% {
                 transform: scale(1);
+                opacity: 1;
             }
             50% {
                 transform: scale(1.05);
+                opacity: 0.8;
             }
             100% {
                 transform: scale(1);
+                opacity: 1;
             }
         }
 
@@ -440,6 +474,28 @@
             .result-score {
                 font-size: 3rem;
             }
+
+            .progress-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .progress-bar {
+                margin: 5px 0;
+                order: 3;
+            }
+            
+            .question-count {
+                order: 1;
+            }
+            
+            .score-display {
+                order: 2;
+            }
+            
+            .timer-display {
+                order: 4;
+            }
         }
 
         @media (max-width: 480px) {
@@ -449,17 +505,6 @@
             
             .quiz-container {
                 padding: 20px 15px;
-            }
-            
-            .progress-container {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 10px;
-            }
-            
-            .progress-bar {
-                width: 100%;
-                margin: 0;
             }
             
             .controls {
@@ -501,6 +546,10 @@
                     <div class="progress-fill" id="progress-fill"></div>
                 </div>
                 <div class="score-display">Score: <span class="score-value" id="score-value">0</span></div>
+                <div class="timer-display">
+                    <i class="fas fa-clock"></i>
+                    Time: <span class="timer-value" id="time-left">150</span>s
+                </div>
             </div>
             
             <div id="quiz">
@@ -619,6 +668,7 @@
         const questionCountElement = document.getElementById("question-count");
         const scoreValueElement = document.getElementById("score-value");
         const progressFillElement = document.getElementById("progress-fill");
+        const timeLeftElement = document.getElementById("time-left");
         const themeToggle = document.getElementById("theme-toggle");
         const body = document.body;
 
@@ -626,6 +676,10 @@
         let score = 0;
         let isDarkMode = false;
         let userName = "";
+        let timePerQuestion = 15; // seconds per question
+        let totalTime = questions.length * timePerQuestion;
+        let timeLeft = totalTime;
+        let timerInterval = null;
 
         // Initialize the app
         initializeApp();
@@ -677,7 +731,48 @@
             score = 0;
             scoreValueElement.textContent = score;
             nextButton.innerHTML = "Next <i class='fas fa-arrow-right'></i>";
+            
+            // Reset and start timer
+            timeLeft = totalTime;
+            updateTimerDisplay();
+            startTimer();
+            
             showQuestion();
+        }
+
+        function startTimer() {
+            // Clear any existing timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+            
+            // Set up new timer
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timeUp();
+                } else if (timeLeft <= 10) {
+                    timeLeftElement.classList.add("timer-warning");
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            timeLeftElement.textContent = timeLeft;
+        }
+
+        function timeUp() {
+            // Disable all answer buttons
+            const allAnswerButtons = document.querySelectorAll('.answer-btn');
+            allAnswerButtons.forEach(button => {
+                button.disabled = true;
+            });
+            
+            // Show time's up message and results
+            showScore(true);
         }
 
         function showQuestion() {
@@ -763,8 +858,11 @@
             nextButton.style.animation = "fadeIn 0.5s";
         }
 
-        function showScore() {
+        function showScore(timeUp = false) {
             resetState();
+            
+            // Stop the timer
+            clearInterval(timerInterval);
             
             // Create result container
             const resultContainer = document.createElement("div");
@@ -781,10 +879,16 @@
                 message = `Keep studying ${userName} and try again! 📚`;
             }
             
+            // Add time's up message if applicable
+            if (timeUp) {
+                message = `Time's up ${userName}! ` + message;
+            }
+            
             resultContainer.innerHTML = `
-                <h2>Congratulations ${userName}!</h2>
+                <h2>${timeUp ? 'Time Up!' : 'Congratulations!'}</h2>
                 <div class="result-score">${score}/${questions.length}</div>
                 <p class="result-message">${message}</p>
+                ${timeUp ? '<p class="time-up-message">You ran out of time!</p>' : ''}
             `;
             
             questionElement.style.display = "none";
@@ -794,7 +898,7 @@
             nextButton.style.display = "block";
             
             // Create confetti for good scores
-            if (score >= questions.length * 0.7) {
+            if (score >= questions.length * 0.7 && !timeUp) {
                 createConfetti();
             }
         }
@@ -842,6 +946,9 @@
                 quizContainer.style.display = "none";
                 userNameInput.value = userName; // Keep the previous name
                 userNameInput.focus();
+                
+                // Reset timer display
+                timeLeftElement.classList.remove("timer-warning");
             }
         });
     </script>
